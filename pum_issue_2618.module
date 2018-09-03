@@ -1,0 +1,176 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function pum_issue_2618_menu() {
+  $items['admin/config/system/issue2618'] = array(
+    'title' => t('Fix for Issue 2618'),
+    'description' => t('Make webform files and pumnet files private'),
+    'page callback' => 'pum_issue_2618_page',
+    'access arguments' => array('administer content types'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  return $items;
+}
+
+function pum_issue_2618_page() {
+  $batch = array(
+    'operations' => array(),
+    'title' => t('Fix for Issue 2618'),
+  );
+
+  // Change library documents
+  /*$result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_document'");
+  while($record = $result->fetchAssoc()) {
+    $batch['operations'][] = array('_pum_issue2618_move_library_document_file', array($record['nid']));
+  }
+  $batch['operations'][] = array('_pum_issue2618_move_library_document_file_update_field', array());
+
+  // Change blog image
+  $result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_blog'");
+  while($record = $result->fetchAssoc()) {
+    $batch['operations'][] = array('_pum_issue2618_move_blog_image', array($record['nid']));
+  }
+  $batch['operations'][] = array('_pum_issue2618_move_blog_image_update_field', array());
+
+  // Change news image
+  $result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_news'");
+  while($record = $result->fetchAssoc()) {
+    $batch['operations'][] = array('_pum_issue2618_move_news_image', array($record['nid']));
+  }
+  $batch['operations'][] = array('_pum_issue2618_move_news_image_update_field', array());*/
+
+  // Process the webform file components
+  $result = db_query("SELECT COUNT(*) AS `total` FROM {webform_submitted_data} INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid WHERE {webform_component}.`type` = 'file'");
+  $total = 0;
+  if ($record = $result->fetchAssoc()) {
+    $total = $record['total'];
+  }
+  for($offset=0; $offset<=$total; $offset = $offset + 5) {
+    $batch['operations'][] = array('_pum_issue2618_move_webform_file_component', array($offset, 5));
+  }
+  $result = db_query("SELECT COUNT(*) AS `total` FROM {webform_submitted_data} INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid WHERE {webform_component}.`type` = 'multifile'");
+  $total = 0;
+  if ($record = $result->fetchAssoc()) {
+    $total = $record['total'];
+  }
+  for($offset=0; $offset<=$total; $offset = $offset + 5) {
+    $batch['operations'][] = array('_pum_issue2618_move_webform_multifile_component', array($offset, 5));
+  }
+  $batch['operations'][] = array('_pum_issue2618_update_webform_file_component', array());
+
+  batch_set($batch);
+  batch_process();
+}
+
+function _pum_issue2618_move_webform_file_component($offset, $limit) {
+  $result = db_query("
+    SELECT `data` 
+    FROM {webform_submitted_data}
+    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid 
+    WHERE {webform_component}.`type` = 'file' 
+    LIMIT {$offset}, {$limit}"
+  );
+  while($record = $result->fetchAssoc()) {
+    $value = $record['data'];
+    if ($value) {
+      $file = file_load($value);
+      if ($file) {
+        _pum_issue2618_move_file($file);
+      }
+    }
+  }
+}
+
+function _pum_issue2618_move_webform_multifile_component($offset, $limit) {
+  $result = db_query("
+    SELECT `data` 
+    FROM {webform_submitted_data} 
+    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid 
+    WHERE {webform_component}.`type` = 'multifile' 
+    LIMIT {$offset}, {$limit}"
+  );
+  while($record = $result->fetchAssoc()) {
+    $arrValues = unserialize($record['data']);
+    foreach ($arrValues as $value) {
+      if ($value) {
+        $file = file_load($value);
+        if ($file) {
+          _pum_issue2618_move_file($file);
+        }
+      }
+    }
+  }
+}
+
+function _pum_issue2618_update_webform_file_component() {
+  $result = db_query("SELECT `cid`, `extra` FROM {webform_component} WHERE `type` = 'file' OR `type` = 'multifile'");
+  while($record = $result->fetchAssoc()) {
+    $extra = unserialize($record['extra']);
+    $extra['scheme'] = 'private';
+    db_query("UPDATE {webform_component} SET extra = :extra WHERE cid = :cid", array(
+      ':extra' => serialize($extra),
+      ':cid' => $record['cid']
+    ));
+  }
+}
+
+function _pum_issue2618_move_library_document_file($nid) {
+  $node = node_load($nid);
+  _pum_issue2618_move_files($node->field_document_file['und']);
+}
+
+function _pum_issue2618_move_library_document_file_update_field() {
+  $field = field_info_field('field_document_file');
+  $field['settings']['uri_scheme'] = 'private';
+  field_update_field($field);
+}
+
+function _pum_issue2618_move_blog_image($nid) {
+  $node = node_load($nid);
+  _pum_issue2618_move_files($node->field_blog_image['und']);
+}
+
+function _pum_issue2618_move_blog_image_update_field() {
+  $field = field_info_field('field_blog_image');
+  $field['settings']['uri_scheme'] = 'private';
+  field_update_field($field);
+}
+
+function _pum_issue2618_move_news_image($nid) {
+  $node = node_load($nid);
+  _pum_issue2618_move_files($node->field_thumbnail['und']);
+  _pum_issue2618_move_files($node->field_imgdesc_image['und']);
+}
+
+function _pum_issue2618_move_news_image_update_field() {
+  $field = field_info_field('field_thumbnail');
+  $field['settings']['uri_scheme'] = 'private';
+  field_update_field($field);
+
+  $field = field_info_field('field_imgdesc_image');
+  $field['settings']['uri_scheme'] = 'private';
+  field_update_field($field);
+}
+
+function _pum_issue2618_move_files($files) {
+  foreach($files as $f) {
+    $file = file_load($f['fid']);
+    if ($file) {
+      _pum_issue2618_move_file($file);
+    }
+  }
+}
+
+function _pum_issue2618_move_file($file) {
+  if ($file && file_exists($file->uri)) {
+    $destination = str_replace('public://', 'private://', $file->uri);
+    if ($destination !== $file->uri) {
+      $directory = drupal_dirname($destination);
+      if (file_prepare_directory($directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS)) {
+        file_move($file, $destination, FILE_EXISTS_RENAME);
+      }
+    }
+  }
+}

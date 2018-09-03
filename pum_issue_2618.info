@@ -1,0 +1,5 @@
+name = Pum Issue 2618
+description = Contains a correction script to secure all uploaded files (see issue 2618).
+core = 7.x
+package = PUM
+version = "7.x-1.0"
