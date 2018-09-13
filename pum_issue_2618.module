@@ -21,7 +21,7 @@ function pum_issue_2618_page() {
   );
 
   // Change library documents
-  $result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_document'");
+ /* $result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_document'");
   while($record = $result->fetchAssoc()) {
     $batch['operations'][] = array('_pum_issue2618_move_library_document_file', array($record['nid']));
   }
@@ -40,6 +40,7 @@ function pum_issue_2618_page() {
     $batch['operations'][] = array('_pum_issue2618_move_news_image', array($record['nid']));
   }
   $batch['operations'][] = array('_pum_issue2618_move_news_image_update_field', array());
+  */
 
   // Process the webform file components
   $result = db_query("SELECT COUNT(*) AS `total` FROM {webform_submitted_data} INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid WHERE {webform_component}.`type` = 'file'");
