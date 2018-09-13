@@ -18,6 +18,7 @@ function pum_issue_2618_page() {
   $batch = array(
     'operations' => array(),
     'title' => t('Fix for Issue 2618'),
+    'redirect' => '/portal',
   );
 
   // Change library documents
