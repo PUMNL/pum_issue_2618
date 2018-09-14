@@ -18,11 +18,10 @@ function pum_issue_2618_page() {
   $batch = array(
     'operations' => array(),
     'title' => t('Fix for Issue 2618'),
-    'redirect' => '/portal',
   );
 
   // Change library documents
- /* $result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_document'");
+  /*$result = db_query("SELECT nid FROM {node} WHERE type = 'pum_portal_document'");
   while($record = $result->fetchAssoc()) {
     $batch['operations'][] = array('_pum_issue2618_move_library_document_file', array($record['nid']));
   }
@@ -41,10 +40,14 @@ function pum_issue_2618_page() {
     $batch['operations'][] = array('_pum_issue2618_move_news_image', array($record['nid']));
   }
   $batch['operations'][] = array('_pum_issue2618_move_news_image_update_field', array());
-  */
-
+*/
   // Process the webform file components
-  $result = db_query("SELECT COUNT(*) AS `total` FROM {webform_submitted_data} INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid WHERE {webform_component}.`type` = 'file'");
+  $result = db_query("
+    SELECT COUNT(*) AS `total` 
+    FROM {webform_submitted_data} 
+    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid AND {webform_submitted_data}.nid = {webform_component}.nid 
+    WHERE {webform_component}.`type` = 'file'
+  ");
   $total = 0;
   if ($record = $result->fetchAssoc()) {
     $total = $record['total'];
@@ -52,7 +55,12 @@ function pum_issue_2618_page() {
   for($offset=0; $offset<=$total; $offset = $offset + 5) {
     $batch['operations'][] = array('_pum_issue2618_move_webform_file_component', array($offset, 5));
   }
-  $result = db_query("SELECT COUNT(*) AS `total` FROM {webform_submitted_data} INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid WHERE {webform_component}.`type` = 'multifile'");
+  $result = db_query("
+    SELECT COUNT(*) AS `total` 
+    FROM {webform_submitted_data} 
+    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid AND {webform_submitted_data}.nid = {webform_component}.nid 
+    WHERE {webform_submitted_data}.data like '%21514%' AND  {webform_component}.`type` = 'multifile'
+  ");
   $total = 0;
   if ($record = $result->fetchAssoc()) {
     $total = $record['total'];
@@ -63,14 +71,14 @@ function pum_issue_2618_page() {
   $batch['operations'][] = array('_pum_issue2618_update_webform_file_component', array());
 
   batch_set($batch);
-  batch_process();
+  batch_process('/portal');
 }
 
 function _pum_issue2618_move_webform_file_component($offset, $limit) {
   $result = db_query("
     SELECT `data` 
     FROM {webform_submitted_data}
-    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid 
+    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid AND {webform_submitted_data}.nid = {webform_component}.nid 
     WHERE {webform_component}.`type` = 'file' 
     LIMIT {$offset}, {$limit}"
   );
@@ -89,7 +97,7 @@ function _pum_issue2618_move_webform_multifile_component($offset, $limit) {
   $result = db_query("
     SELECT `data` 
     FROM {webform_submitted_data} 
-    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid 
+    INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid AND {webform_submitted_data}.nid = {webform_component}.nid 
     WHERE {webform_component}.`type` = 'multifile' 
     LIMIT {$offset}, {$limit}"
   );
