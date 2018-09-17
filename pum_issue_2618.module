@@ -59,7 +59,7 @@ function pum_issue_2618_page() {
     SELECT COUNT(*) AS `total` 
     FROM {webform_submitted_data} 
     INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid AND {webform_submitted_data}.nid = {webform_component}.nid 
-    WHERE {webform_submitted_data}.data like '%21514%' AND  {webform_component}.`type` = 'multifile'
+    WHERE {webform_submitted_data}.data AND  {webform_component}.`type` = 'multifile'
   ");
   $total = 0;
   if ($record = $result->fetchAssoc()) {
