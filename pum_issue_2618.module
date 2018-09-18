@@ -11,6 +11,14 @@ function pum_issue_2618_menu() {
     'access arguments' => array('administer content types'),
     'type' => MENU_LOCAL_TASK,
   );
+  $items['admin/config/system/issue2618_check'] = array(
+    'title' => t('Chceck webform file for Issue 2618'),
+    'description' => t('Make webform files and pumnet files private'),
+    'page callback' => 'pum_issue_2618_check_page',
+    'file' => 'check.inc',
+    'access arguments' => array('administer content types'),
+    'type' => MENU_LOCAL_TASK,
+  );
   return $items;
 }
 
@@ -59,7 +67,7 @@ function pum_issue_2618_page() {
     SELECT COUNT(*) AS `total` 
     FROM {webform_submitted_data} 
     INNER JOIN {webform_component} ON {webform_submitted_data}.cid = {webform_component}.cid AND {webform_submitted_data}.nid = {webform_component}.nid 
-    WHERE {webform_submitted_data}.data AND  {webform_component}.`type` = 'multifile'
+    WHERE {webform_component}.`type` = 'multifile'
   ");
   $total = 0;
   if ($record = $result->fetchAssoc()) {
@@ -69,6 +77,7 @@ function pum_issue_2618_page() {
     $batch['operations'][] = array('_pum_issue2618_move_webform_multifile_component', array($offset, 5));
   }
   $batch['operations'][] = array('_pum_issue2618_update_webform_file_component', array());
+  $batch['operations'][] = array('pum_issue_2618_clean_webform_dir', array());
 
   batch_set($batch);
   batch_process('/portal');
@@ -174,13 +183,61 @@ function _pum_issue2618_move_files($files) {
 }
 
 function _pum_issue2618_move_file($file) {
-  if ($file && file_exists($file->uri)) {
+  if (stripos($file->uri, 'private://') === 0) {
+    return;
+  }
+  $wrapper = file_stream_wrapper_get_instance_by_uri($file->uri);
+  if ($file && file_exists($wrapper->realpath())) {
     $destination = str_replace('public://', 'private://', $file->uri);
     if ($destination !== $file->uri) {
       $directory = drupal_dirname($destination);
       if (file_prepare_directory($directory, FILE_CREATE_DIRECTORY | FILE_MODIFY_PERMISSIONS)) {
         file_move($file, $destination, FILE_EXISTS_RENAME);
       }
+    }
+  }
+}
+
+function pum_issue_2618_clean_webform_dir() {
+  $files = file_scan_directory('sites/default/files/webform', '/.*/');
+  $totalFiles = count($files);
+  $notFoundCount = 0;
+  foreach($files as $file) {
+    $fileManagedCount = 0;
+    $fids = db_select('file_managed', 'f')
+      ->fields('f', ['fid'])
+      ->condition('filename', $file->filename)
+      ->execute();
+    foreach ($fids as $fid) {
+      $fileUsed = false;
+      $fileManagedCount ++;
+      $fileUsages = db_select('file_usage', 'f')->fields('f', array())->condition('fid', $fid->fid)->execute();
+      foreach($fileUsages as $fileUsage) {
+        $fileUsed = TRUE;
+      }
+      if (!$fileUsed) {
+        $webforms = db_query("SELECT sd.sid, sd.nid, sd.cid, wc.type, sd.data FROM webform_submitted_data sd INNER JOIN webform_component wc ON wc.nid = sd.nid AND wc.cid = sd.cid WHERE (wc.type = 'file' OR wc.type = 'multifile') AND sd.data LIKE '%{$fid->fid}%'");
+        foreach ($webforms as $webform) {
+          if ($webform->data === $fid->fid) {
+            $fileUsed = TRUE;
+          }
+          else {
+            $data = unserialize($webform->data);
+            if (is_array($data) && in_array($fid, $data)) {
+              $fileUsed = TRUE;
+            }
+          }
+        }
+      }
+
+      if (!$fileUsed) {
+        db_delete('file_managed')->condition('fid', $fid->fid);
+        $fileManagedCount --;
+      }
+    }
+
+    if ($fileManagedCount < 1) {
+      file_unmanaged_delete($file->uri);
     }
   }
 }
